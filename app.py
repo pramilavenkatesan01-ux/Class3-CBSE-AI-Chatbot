@@ -2,7 +2,8 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 import faiss
 import pickle
-import google.generativeai as genai
+from google import genai
+
 
 # --------------------------
 # Page Settings
@@ -13,6 +14,7 @@ st.set_page_config(
     page_icon="📚",
     layout="centered"
 )
+
 
 # --------------------------
 # Header
@@ -35,6 +37,7 @@ Ask questions from:
 🔬 Science
 """
 )
+
 
 # --------------------------
 # Sidebar
@@ -63,10 +66,12 @@ with st.sidebar:
     st.write("• Explain plants.")
     st.write("• What is the solar system?")
 
+
     if st.button("🧹 Clear Chat"):
 
         st.session_state.messages = []
         st.rerun()
+
 
 
 # --------------------------
@@ -74,14 +79,15 @@ with st.sidebar:
 # --------------------------
 
 @st.cache_resource
-def load_embedding_model():
+def load_model():
 
     return SentenceTransformer(
         "all-MiniLM-L6-v2"
     )
 
 
-model = load_embedding_model()
+embedding_model = load_model()
+
 
 
 # --------------------------
@@ -89,33 +95,34 @@ model = load_embedding_model()
 # --------------------------
 
 @st.cache_resource
-def load_database():
+def load_faiss():
 
     index = faiss.read_index(
         "class3_index.faiss"
     )
 
-    with open("chunks.pkl", "rb") as f:
+    with open(
+        "chunks.pkl",
+        "rb"
+    ) as f:
+
         chunks = pickle.load(f)
 
     return index, chunks
 
 
-index, chunks = load_database()
+index, chunks = load_faiss()
+
 
 
 # --------------------------
-# Gemini Configuration
+# Gemini Client
 # --------------------------
 
-genai.configure(
+client = genai.Client(
     api_key=st.secrets["GEMINI_API_KEY"]
 )
 
-
-gemini_model = genai.GenerativeModel(
-    "gemini-2.5-flash"
-)
 
 
 # --------------------------
@@ -129,15 +136,18 @@ if "messages" not in st.session_state:
 
 for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
+    with st.chat_message(
+        message["role"]
+    ):
 
         st.markdown(
             message["content"]
         )
 
 
+
 # --------------------------
-# Chat Input
+# User Question
 # --------------------------
 
 question = st.chat_input(
@@ -164,7 +174,7 @@ if question:
 
     # Create embedding
 
-    embedding = model.encode(
+    embedding = embedding_model.encode(
         [question]
     )
 
@@ -177,7 +187,7 @@ if question:
     )
 
 
-    # Context checking
+    # Check relevance
 
     if distance[0][0] > 1.0:
 
@@ -224,8 +234,12 @@ Answer:
 """
 
 
-        response = gemini_model.generate_content(
-            prompt
+        response = client.models.generate_content(
+
+            model="gemini-2.5-flash",
+
+            contents=prompt
+
         )
 
 
@@ -233,9 +247,11 @@ Answer:
 
 
 
-    # Display Answer
+    # Show answer
 
-    with st.chat_message("assistant"):
+    with st.chat_message(
+        "assistant"
+    ):
 
         st.markdown(answer)
 
