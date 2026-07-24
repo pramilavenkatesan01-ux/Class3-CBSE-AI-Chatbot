@@ -111,11 +111,10 @@ index, chunks = load_database()
 genai.configure(
     api_key=st.secrets["GEMINI_API_KEY"]
 )
-for m in genai.list_models():
-    st.write(m.name)
+
 
 gemini_model = genai.GenerativeModel(
-    "gemini-1.5-flash"
+    "gemini-2.5-flash"
 )
 
 
