@@ -4,3 +4,5 @@ faiss-cpu
 google-generativeai
 streamlit-mic-recorder
 gtts
+torch
+torchvision
