@@ -6,13 +6,12 @@ from google import genai
 
 
 # --------------------------
-# Page Settings
+# Page Configuration
 # --------------------------
 
 st.set_page_config(
     page_title="Class 3 CBSE AI Chatbot",
-    page_icon="📚",
-    layout="centered"
+    page_icon="📚"
 )
 
 
@@ -58,6 +57,7 @@ with st.sidebar:
         ]
     )
 
+
     st.subheader("💡 Suggested Questions")
 
     st.write("• What is a noun?")
@@ -68,7 +68,6 @@ with st.sidebar:
 
 
     if st.button("🧹 Clear Chat"):
-
         st.session_state.messages = []
         st.rerun()
 
@@ -79,14 +78,16 @@ with st.sidebar:
 # --------------------------
 
 @st.cache_resource
-def load_model():
+def load_embedding_model():
 
-    return SentenceTransformer(
+    model = SentenceTransformer(
         "all-MiniLM-L6-v2"
     )
 
+    return model
 
-embedding_model = load_model()
+
+embedding_model = load_embedding_model()
 
 
 
@@ -95,11 +96,12 @@ embedding_model = load_model()
 # --------------------------
 
 @st.cache_resource
-def load_faiss():
+def load_database():
 
     index = faiss.read_index(
         "class3_index.faiss"
     )
+
 
     with open(
         "chunks.pkl",
@@ -108,15 +110,17 @@ def load_faiss():
 
         chunks = pickle.load(f)
 
+
     return index, chunks
 
 
-index, chunks = load_faiss()
+
+index, chunks = load_database()
 
 
 
 # --------------------------
-# Gemini Client
+# Gemini API
 # --------------------------
 
 client = genai.Client(
@@ -126,7 +130,7 @@ client = genai.Client(
 
 
 # --------------------------
-# Chat History
+# Chat Memory
 # --------------------------
 
 if "messages" not in st.session_state:
@@ -134,15 +138,13 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-for message in st.session_state.messages:
 
-    with st.chat_message(
-        message["role"]
-    ):
+for msg in st.session_state.messages:
 
-        st.markdown(
-            message["content"]
-        )
+    with st.chat_message(msg["role"]):
+
+        st.write(msg["content"])
+
 
 
 
@@ -160,26 +162,30 @@ if question:
 
     st.session_state.messages.append(
         {
-            "role": "user",
-            "content": question
+            "role":"user",
+            "content":question
         }
     )
 
 
     with st.chat_message("user"):
 
-        st.markdown(question)
+        st.write(question)
 
 
 
-    # Create embedding
+    # ----------------------
+    # Create Embedding
+    # ----------------------
 
     embedding = embedding_model.encode(
         [question]
     )
 
 
-    # Search FAISS
+    # ----------------------
+    # FAISS Search
+    # ----------------------
 
     distance, result = index.search(
         embedding,
@@ -187,7 +193,6 @@ if question:
     )
 
 
-    # Check relevance
 
     if distance[0][0] > 1.0:
 
@@ -204,20 +209,19 @@ if question:
         context = chunks[result[0][0]]
 
 
+
         prompt = f"""
 
-You are an experienced Class 3 CBSE teacher.
+You are a Class 3 CBSE teacher.
+
+Answer only from the context.
 
 Rules:
-
-1. Answer ONLY using the Context below.
-2. Never make up information.
-3. If the Context does not contain the answer, reply:
+- Use simple English.
+- Give examples.
+- Do not answer outside Class 3 CBSE syllabus.
+- If answer is not available say:
 Sorry! I can only answer questions related to the Class 3 CBSE syllabus.
-4. Keep the answer simple.
-5. Use easy English suitable for a Class 3 student.
-6. Give examples whenever possible.
-7. Answer in 3-5 short sentences.
 
 Context:
 
@@ -234,32 +238,44 @@ Answer:
 """
 
 
-        response = client.models.generate_content(
+        # ----------------------
+        # Gemini Response
+        # ----------------------
 
-            model="gemini-2.5-flash",
+        try:
 
-            contents=prompt
+            response = client.models.generate_content(
 
-        )
+                model="gemini-2.5-flash",
+
+                contents=prompt
+
+            )
 
 
-        answer = response.text
+            answer = response.text
+
+
+        except Exception as e:
+
+            answer = f"""
+⚠️ Gemini Error Details:
+
+{e}
+"""
 
 
 
-    # Show answer
+    with st.chat_message("assistant"):
 
-    with st.chat_message(
-        "assistant"
-    ):
-
-        st.markdown(answer)
+        st.write(answer)
 
 
 
     st.session_state.messages.append(
         {
-            "role": "assistant",
-            "content": answer
+            "role":"assistant",
+            "content":answer
         }
     )
+
